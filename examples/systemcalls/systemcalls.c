@@ -1,4 +1,10 @@
 #include "systemcalls.h"
+#include <stdlib.h>
+#include <unistd.h>
+#include <fcntl.h>
+
+#include <sys/types.h>
+#include <sys/wait.h>
 
 /**
  * @param cmd the command to execute with system()
@@ -16,8 +22,16 @@ bool do_system(const char *cmd)
  *   and return a boolean true if the system() call completed with success
  *   or false() if it returned a failure
 */
+    int ret = system(cmd);
 
-    return true;
+    if (0 == ret)
+    {
+        return true;
+    }
+    else
+    {
+        return false;
+    }
 }
 
 /**
@@ -47,7 +61,7 @@ bool do_exec(int count, ...)
     command[count] = NULL;
     // this line is to avoid a compile warning before your implementation is complete
     // and may be removed
-    command[count] = command[count];
+    // command[count] = command[count];
 
 /*
  * TODO:
@@ -58,10 +72,41 @@ bool do_exec(int count, ...)
  *   as second argument to the execv() command.
  *
 */
+    bool ret = false;
+
+    pid_t pid = fork();
+    if (0 == pid)
+    {
+        // Child process
+        int ret_exec = execv(command[0], &command[0]);
+        if (0 != ret_exec)
+        {
+            exit(-1);
+        }
+    }
+    else if (pid > 0)
+    {
+        // Parent process
+        int status;
+        wait(&status);
+        if (WIFEXITED(status))
+        {
+            int ret_status = WEXITSTATUS(status);
+            if (0 == ret_status)
+            {
+                ret = true;
+            }
+        }
+    }
+    else
+    {
+        // Fork failed
+        ret = false;
+    }
 
     va_end(args);
 
-    return true;
+    return ret;
 }
 
 /**
@@ -92,6 +137,40 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
  *   The rest of the behaviour is same as do_exec()
  *
 */
+
+    int kidpid;
+    int fd = open(outputfile, O_WRONLY|O_TRUNC|O_CREAT, 0644);
+
+    if (fd < 0)
+    {
+        perror("open");
+        abort();
+    }
+
+    kidpid = fork();
+    switch (kidpid)
+    {
+        case -1:
+            perror("fork");
+            abort();
+        case 0:
+            if (dup2(fd, STDOUT_FILENO) < 0)
+            {
+                perror("dup2");
+                abort();
+            }
+
+            close(fd);
+
+            execvp(command[0], &command[0]);
+            perror("execvp");
+            abort();
+
+        default:
+            close(fd);
+            /* do whatever the parent wants to do. */
+            wait(NULL);
+    }
 
     va_end(args);
 
