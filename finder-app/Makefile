@@ -22,4 +22,4 @@ $(TARGET): $(OBJS)
 
 # Clean target
 clean:
-	rm -f $(TARGET) *.o
+	@ rm -f $(TARGET) *.o
